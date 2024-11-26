@@ -122,7 +122,7 @@ async def write(df: pd.DataFrame):
     except FileNotFoundError:
         existing_sheets = []
     
-    with pd.ExcelWriter('users_status.xlsx', engine='openpyxl', mode='a' if existing_sheets else 'w', if_sheet_exists="overlay" if existing_sheets else None) as writer:
+    with pd.ExcelWriter('users_status.xlsx', mode='a' if existing_sheets else 'w', if_sheet_exists="overlay" if existing_sheets else None) as writer:
         for status in statuses:
             # Фильтруем данные по текущему статусу
             filtered_df = df[df['Статус'] == status]
@@ -159,9 +159,16 @@ async def work():
             f"timeout: {timeout}"
         )
         logger.info(msg)
-        df = await api.get_data(page=page, proxy=proxy, timeout=timeout)
-        dfs.append(df)
-        cached_pages.append(page)
+        try:
+            df = await api.get_data(page=page, proxy=proxy, timeout=timeout)
+        except Exception as e:
+            logger.exception(f"Error fetching page {page} with proxy {proxy}: {e}")
+        else:
+            isdf = isinstance(df, pd.DataFrame)
+            logger.info(f"get page info ({page}). Dataframe - {isdf} {df if not isdf else ""}")
+            if isdf:
+                dfs.append(df)
+                cached_pages.append(page)
 
     tasks = []
     empty = True
@@ -171,12 +178,12 @@ async def work():
         
         if empty:
             empty = False
-            
         if len(tasks) == 3:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             with open('cached_pages.pkl', 'wb') as f:
                 pickle.dump(cached_pages, f)
-                
+            
+            logger.debug(f'results: {results}. len dfs - {len(dfs)}')
             if dfs:
                 df = pd.concat(dfs)
                 await write(df)
@@ -188,6 +195,7 @@ async def work():
         
         task = gather(i, proxy)
         tasks.append(task)
+        logger.info(f'iter - {i}')
     
     if empty:
         raise ValueError('empty')
@@ -200,7 +208,7 @@ async def work():
 
 
 async def main():
-    logger.add('logs.log', diagnose=True, level="INFO", backtrace=True)
+    logger.add('logs.log', diagnose=True, level="DEBUG", backtrace=True)
     # await 
     # return
     while True:
