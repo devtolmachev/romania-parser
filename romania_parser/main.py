@@ -172,13 +172,13 @@ async def work():
 
     tasks = []
     empty = True
-    for i in range(1, 6559):
+    for i in range(1, 366):
         if i in cached_pages:
             continue
         
         if empty:
             empty = False
-        if len(tasks) == 3:
+        if len(tasks) == 5:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             with open('cached_pages.pkl', 'wb') as f:
                 pickle.dump(cached_pages, f)
@@ -188,6 +188,7 @@ async def work():
                 df = pd.concat(dfs)
                 await write(df)
             tasks.clear()
+            dfs.clear()
             await asyncio.sleep(3)
         
         proxy = random.choice(proxies)
@@ -201,23 +202,43 @@ async def work():
         raise ValueError('empty')
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
+    with open('cached_pages.pkl', 'wb') as f:
+        pickle.dump(cached_pages, f)
     if dfs:
         df = pd.concat(dfs)
         await write(df)
-    ...
+
+
+def remove_duplicates():
+    xls = pd.ExcelFile('users_status.xlsx')
+    sheets = xls.sheet_names 
+
+    cleaned_dfs = {}
+
+    for sheet in sheets:
+        df = pd.read_excel(xls, sheet_name=sheet) 
+        df_cleaned = df.drop_duplicates()
+        cleaned_dfs[sheet] = df_cleaned
+
+    with pd.ExcelWriter('users_status_cleaned.xlsx') as writer:
+        for sheet, cleaned_df in cleaned_dfs.items():
+            cleaned_df.to_excel(writer, sheet_name=sheet, index=False)
 
 
 async def main():
     logger.add('logs.log', diagnose=True, level="DEBUG", backtrace=True)
-    # await 
-    # return
+
     while True:
         try:
             await work()
+        except ValueError as e:
+            if str(e) == 'empty':
+                break
         except Exception as e:
             logger.exception(e)
             continue
-    ...
+    
+    remove_duplicates()
 
         
 if __name__ == "__main__":

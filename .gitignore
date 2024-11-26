@@ -6,6 +6,7 @@ __pycache__/
 proxies.json
 *.xlsx
 .~*
+*.pkl
 
 # C extensions
 *.so
