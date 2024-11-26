@@ -35,9 +35,9 @@ class RomanianPassportAPI:
         url = 'https://romanian-passport.com/dom22d/newsletters.asp'
         cookies = {
             'Referral%5FType': '5',
-            'Return%5FID': '1329402',
             'ASPSESSIONIDAWQBSQTC': 'OAIPAFLBKHNHMFAPNPKEJLGD',
-            'ASPSESSIONIDSWRAQQQC': 'HIKHPNFCIEDPCKIBCKCKJNHJ',
+            'Return%5FID': '1329929',
+            'ASPSESSIONIDSWRAQQQC': 'KOKHPNFCNGFJCAPFJAKFEOHB',
         }
         headers = self._hdrs
         
@@ -122,7 +122,7 @@ async def write(df: pd.DataFrame):
     except FileNotFoundError:
         existing_sheets = []
     
-    with pd.ExcelWriter('users_status.xlsx', engine='openpyxl', mode='a' if existing_sheets else 'w', if_sheet_exists="overlay") as writer:
+    with pd.ExcelWriter('users_status.xlsx', engine='openpyxl', mode='a' if existing_sheets else 'w', if_sheet_exists="overlay" if existing_sheets else None) as writer:
         for status in statuses:
             # Фильтруем данные по текущему статусу
             filtered_df = df[df['Статус'] == status]
@@ -152,7 +152,7 @@ async def work():
     async def gather(page, proxy: str):
         nonlocal dfs, cached_pages
         api = RomanianPassportAPI()
-        timeout = 10
+        timeout = 90
         
         msg = (
             f"try to get page {page} with proxy {proxy}, with "
@@ -172,7 +172,7 @@ async def work():
         if empty:
             empty = False
             
-        if len(tasks) == 7:
+        if len(tasks) == 3:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             with open('cached_pages.pkl', 'wb') as f:
                 pickle.dump(cached_pages, f)
@@ -181,7 +181,7 @@ async def work():
                 df = pd.concat(dfs)
                 await write(df)
             tasks.clear()
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
         
         proxy = random.choice(proxies)
         proxy += str(random.randint(10000, 10999))
@@ -201,6 +201,8 @@ async def work():
 
 async def main():
     logger.add('logs.log', diagnose=True, level="INFO", backtrace=True)
+    # await 
+    # return
     while True:
         try:
             await work()
