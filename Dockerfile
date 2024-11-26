@@ -9,3 +9,5 @@ RUN poetry config virtualenvs.create false
 RUN poetry install --no-root --no-interaction --no-ansi
 
 COPY . /app
+
+CMD ["python", "romania_parser/main.py"]

@@ -6,6 +6,7 @@ from numpy import random
 import pandas as pd
 import bs4
 import aiofiles
+from loguru import logger
 from aiohttp import ClientSession
 import ua_generator
 
@@ -142,57 +143,70 @@ async def work():
         proxies = json.load(f)
     
     dfs = []
-    cached_pages = []
-    with open('cached_pages.pkl', 'rb') as f:
-        cached_pages = pickle.load(f)
+    try:
+        with open('cached_pages.pkl', 'rb') as f:
+            cached_pages = pickle.load(f)
+    except Exception as e:
+        cached_pages = []
     
-    async def gather(page, proxy):
+    async def gather(page, proxy: str):
         nonlocal dfs, cached_pages
         api = RomanianPassportAPI()
+        timeout = 10
         
-        df = await api.get_data(page=page, proxy=proxy, timeout=10)
+        msg = (
+            f"try to get page {page} with proxy {proxy}, with "
+            f"timeout: {timeout}"
+        )
+        logger.info(msg)
+        df = await api.get_data(page=page, proxy=proxy, timeout=timeout)
         dfs.append(df)
         cached_pages.append(page)
 
     tasks = []
-    empty = False
+    empty = True
     for i in range(1, 6559):
         if i in cached_pages:
             continue
         
-        if not empty:
-            empty = True
+        if empty:
+            empty = False
             
-        if len(tasks) == 30:
+        if len(tasks) == 7:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             with open('cached_pages.pkl', 'wb') as f:
                 pickle.dump(cached_pages, f)
                 
-            df = pd.concat(dfs)
-            await write(df)
+            if dfs:
+                df = pd.concat(dfs)
+                await write(df)
             tasks.clear()
             await asyncio.sleep(5)
-            
+        
         proxy = random.choice(proxies)
         proxy += str(random.randint(10000, 10999))
         
         task = gather(i, proxy)
         tasks.append(task)
     
-    if not empty:
+    if empty:
         raise ValueError('empty')
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    df = pd.concat(dfs)
-    await write(df)
+    if dfs:
+        df = pd.concat(dfs)
+        await write(df)
     ...
 
 
 async def main():
-    proxy = 'http://UK5Wgiu76ziq:RNW78Fm5@pool.proxy.market:10000'
-    
+    logger.add('logs.log', diagnose=True, level="INFO", backtrace=True)
     while True:
-        await work()
+        try:
+            await work()
+        except Exception as e:
+            logger.exception(e)
+            continue
     ...
 
         
